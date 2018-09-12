@@ -1,0 +1,44 @@
+#chapter6   
+
+1. 主ip，从ip，ip别名
+2. net_device->ip_ptr is S.in_device #通过 in_dev_get() 获取，in_dev_get 释放
+   in_device->ifa_list #ipv4的配置链表
+   inetdev_init() #配置默认ip
+3. S.in_device结构 #设备上的ip配置
+===
+	dev 
+	refcnt
+	dead #为1时，表示该ip要被释放
+	struct in_ifaddr * ifa_list #设备上的ip链表
+	struct neigh_parms *arp_parms #arp相关参数
+	struct ipv4_devconf cnf # 特殊的ipv4设置
+	rcu_head #锁
+	
+4. S.in_ifaddr #ip地址块 通过ifa_list 构成链表
+	ifa_next 
+	ifa_dev #指向 in_device
+	rcu_head #
+	ifa_local ,ifa_address # 交换机 二者一样都是本地ip #pppoe 一个是本端ip 一个是远端ip
+	ifa_mask #netmask
+	ifa_broadcast 
+	ifa_scope # ip a //scope # host 本机可见 #link 局域网可见的 #universe/global 都可用
+    ifa_flags # secondary 从属flags # permanent 静态ip
+	ifa_prefixlen # PREFIX
+	ifa_label #地址标签 是设备名或者别名
+5. inetdev_init() # 为网络设备分配默认ip配置 ipv4_devconf_dflt 
+6. inetdev_destroy() #
+7. inet_select_addr(dev,dst,scope) #根据目的地址，设备，范围，获取本机ip
+    # 先查询主ip，是否满足条件，如果不，就遍历dev_base，查找满足条件的设备的ip
+	
+8. netlink 配置ip #RTM_NEWADDR inet_rtm_newaddr #RTM_DELADDR RTM_GETADDR 
+nlmh # nlm_len nlm_type nlm_flags nlm_seq nlm_pid
+ifam # ifa_family ifa_prefixlen ifa_flags ifa_scope 
+attrbute # 
+
+9. inet_rtm_newaddr()	#添加ip 调用__inet_insert_ifa
+   inet_rtm_deladdr() #删除ip 调用 __inet_del_ifa
+
+10 sock_ioctl() -> inet_ioctl() #网络层的ioctl -> devinet_ioctl() #设备无关层的ioctl 
+                -> dev_ioctl()
+
+11 ip事件通知连 inetaddr_chain

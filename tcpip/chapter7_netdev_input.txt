@@ -1,0 +1,68 @@
+#chapter7 接口层的输入
+
+中断：引脚中断（网卡收报硬中断） int中断（系统调用中断）
+异常：fault （缺页） trap （除0） abort（panic）
+软中断 ： 软件模拟中断 下半部
+
+1. 3种收包方式
+===
+完全硬中断收包 
+定时器轮询设备收包 
+
+
+
+2. 内核参数：dev_weight    #软中断轮询队列时，对一个网卡取包的配额，保证公平 64 
+          netdev_budget #轮询取包的总报文配额 等待下次软中断的触发 300
+		  netdev_max_backlog #非napi链路层的缓存队列长度 1000
+		  
+3. 接口层的ioctl命令
+
+SIOC*IF***命令的get set操作，通过S.ifreq来传递相应的值
+SIOCgIFconf #返回系统中所有接口的配置信息
+SIO*IFNAME #获取设备名
+SIO*IFFLAGS #网络设备的标志
+SIO*IF{METRIC ，MTU ,HWADDR,MAP#设备的内存，io，中断，多端口设备的端口，INDEX,XQLEN,IFADDR,
+
+SIOCETHTOOL #eth设备专用操作命令
+
+4. S.softnet_data #描述软中断的收发队列 #每个cpu都有该实例，无锁 #承上启下 接口层和网络层
+   上述的 poll_list 和 input_pkt_queue
+   S.net_device * output_queue #napi 设备队列
+   skb_h input_pkt_queue       #非napi skb缓存队列 netdev_max_backlog 1000
+   list_head poll_list;        #napi 设备队列
+   skb * commletion_queue      #完成发送的等待释放队列
+   S.net_device backlog_dev    #非napi驱动的虚拟网络设备队列
+   
+5.napi驱动 多为物理设备
+===
+NP/NAPI(轮询设备):硬中断执行上半部，将设备添加到轮询队列 ，关闭硬中断，通过一个数据包触发软中断轮询队列 poll_list(网络设备的读取的包) 
+
+e100_intr() #中断例程
+net_rx_aciton #软中断例程
+e100_poll #由软中断调用
+
+
+6.非napi驱动 多为虚拟网络
+===
+非napi （轮询数据）：硬中断读取数据包放入input_pkt_input,软中断轮询处理包
+
+netif_rx #中断例程，填充input_pkt_queue
+process_backlog #轮询例程
+	
+
+7. 接口层上送网络层的处理
+ packet_type #网络层的接收接口 #支持多协议，接口层根据此实例，上送网络
+  type #网络层协议号
+  dev #输入设备
+  * func #网络协议接收函数  ip_rcv 
+  *gso_segment #网络层提供给接口层的分片函数，如果设备不支持，直接call
+  *gso_send_check #校验
+  *af_packet_priv #协议族的私有数据
+  list #不同协议族的接收函数链表
+  
+  ptype_base #网络协议族的实例散列表
+  
+8. netif_receive_skb #遍历ptype_base，调用网络层的协议类型，调用例程
+9. 相应cpu变化，并实现收包的迁移
+
+10. netpoll && netconsole
