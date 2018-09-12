@@ -1,0 +1,79 @@
+
+#chapter5. 
+1. net_device 结构
+S.net_device  # 硬件信息成员 接口信息成员 设备操作接口 辅助成员
+========
+name
+name_hlist #组成散列表
+mem_start mem_end # 网络设备共享内存的地址
+base_addr #网络接口i/o基地址
+irq #设备中断号
+state #设备状态
+*next # 下一个设备
+int (*init)(struct net_device *dev) # 设备初始化函数
+features #特性
+next_sched # 下一个已有数据包处理的设备
+ifindex
+iflink
+struct net_device_stats * (*get_status)(struct net_device *dev) #-s 函数
+ethtool_ops #ethtool的相关操作
+flags #网卡标志 IFF
+priv_flags #bonding bridge vlan 虚拟设备特殊flag
+padded #实例对齐
+mtu
+type #以太 ib
+hard_header_len #硬件首部长度 14B
+dev_addr #mac地址
+promiscuity #混杂模式
+*poll() # napi的轮询接口
+int quota # 一次轮询的取包
+weight # 单个网络设备取包的配额
+last_rx #最新取保时间
+queue_lock #队列并发自旋锁
+qdisc #根排队规则
+qdisc_sleeping #在该时间后排队规则生效
+qdisc-list #所有的排队规则
+tx_queue_len #发送队列的最大数据包数
+ingress_lock #qdisc自旋锁
+qdisc_ingress #数据包输入的排队规则
+_xmit_lock #发包自旋锁
+xmit_lock_owner #通过该dev发包的cpu
+*hard_start_xmit #设备无关层调用该接口，实现数据的发送
+watchdog_timeo # 网络层确定超时的超时时间，会调用 tx_timeout
+watchdog_timer # 设备狗，发送超时则处理
+refcnt #ref
+todo_list #注销列表
+index-hlist # 组成index散列表
+reg_state #设备的注册状态
+
+* uninit 
+* open  #up
+* stop  #down 
+* hard_header #计算帧首部
+* rebuild_header #arp 之后，重新计算帧首部
+* set_mac_address 
+* do_ioctl
+* hard_header_cache #填充帧首部
+* update/parse #更新帧首部
+
+
+2.#dev_base 链表 #驱动私有数据自己alloc 然后挂接到net_device #两个散列表 #struct in_device
+
+  
+
+3.设备注册时机 #pci_driver->probe()驱动加载，注册设备 #热插拔，通知驱动，注册设备
+
+4. alloc_netdev() #分配net_device结构体的内存 
+   alloc_etherdev() # return alloc_netdev(sizeof_priv,"eth%d",ether_setup)
+   ether_setup#
+
+5. 分配了结构体，初始化其参数后，注册调用 register_netdev(net_dev)
+   注册详细过程 # 执行驱动初始化函数 教研网卡名 更新rebuild_head sysfs 散列表 netdev_chain通知连
+   
+  
+6.设备注册状态通知链 #netdev_chain #netlink RTMGRP_LINK
+
+7 网络设备的启用 dev_change_flags dev_open IFF_OPEN
+
+8. do_ioctl #执行ioctl操作
+

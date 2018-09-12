@@ -1,0 +1,23 @@
+
+#chapter4
+网络设备初始化 驱动初始化  
+
+1. #模块 静态链接 动态链接 内核
+   #initcall 模块加载机制分析 lue
+
+2. 各协议层初始化函数
+socket层   sock_init
+传输层     proto_init
+网络层     inet_init 
+设备接口层 net_dev_init
+驱动层     e100_init_module
+
+3. 网络设备初始化 
+net_dev_init# procfs sysfs 协议处理函数 网络设备散列表 cpu接收队列 软中断注册 cpu时间通知连 目的路由init 
+
+4.pci设备结构，网卡驱动初始化
+S.pci_device_id 
+S.pci_driver
+
+e100_init_module # e100_id_table e100_driver pci_register_driver
+

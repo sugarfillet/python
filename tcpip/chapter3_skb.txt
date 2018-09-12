@@ -1,0 +1,121 @@
+#chapter3
+S.skb 结构与操作
+1. send skb_preserve() recv skb_put()
+2. skb支持多种特性 
+3. skb 结构包括 skb本身的一些属性truesize等 ，和 ，数据块 (head data tail end)
+##成员介绍
+
+###存储相关
+M.next M.prev  #组织为双向链表 并引入 S.sk_buff_head作为描述链表的头、长度、锁。
+sk # 宿主传输控制块 
+len # 整个帧（可能在某一层mac头没有填充）的长度
+data_len # sg分片的长度和
+mac_lean # 帧首部长度
+users #表示此skb的引用计数，用于释放
+truesize # len + sizeof(sk_buff)
+char* head[headroom] data[payload] tail[tailroom] end[skb_shared_info]
+
+###通用信息
+tstamp #接收的时间戳 netif_rx（）设备接口层
+dev  # 接收的情况下：驱动层，分配接收队列，挂接skb的dev
+     # 发送的情况下：  指向输出设备，分配比较复杂	   
+inpu_dev # 接收报文的原始设备
+union h nh mac # 4 3 2 层首部
+struct dst_entry *dst #目的路由缓存项
+char cb[48] # 每层协议的私有特征信息 S.tcp_skb_cb
+ip_summed # 标记传输层教研和的状态
+csum/csum_offset # 存放data的校验和 #存放h的校验和
+cloned # 
+pkt_type #表示帧类型 本地帧 广播帧 组播帧
+priority # Qos 包的优先级
+protocol # 三层协议类型 #取决于driver怎么向无关接口层请求三层处理函数
+
+###标志信息
+nohdr # 表示该payload 没有头部了，不能再被特殊处理了，直接交往上层
+local_df # skb允许本地分片
+fclone  # 是否被clone，是子还是父
+
+4. S.skb_shared_info #skb共享的信息（附加信息）#引用该值需要特定函数
+5. zero-copy 
+   # 传统的读写文件 需要 4次内存拷贝 从硬件缓存dma拷贝到内核 从内核到用户态 。。 。。 
+   # 需求 读什么写什么 ，用 readwrite 需要四次拷贝
+   # 用 open senfile 在相同的socket fd之间传输数据， 不需要用户态的参与
+   
+   
+6. gather/scatter在skb中的体现
+
+struct skb *frag_list 
+short nr_frags
+skb_frag_t frags[MAX_SKB_FRAGS]
+
+在发送的时候把报文非线性分片（scatter）存储在数组frags 内存页里，送给网卡
+
+skb_frag_t{
+struct page *page # 内存页的指针
+page_offset; #内存页偏移
+size #数据在当前页面的长度 
+}
+
+非分片skb： len=当前skb的ip包长  data_len = 0 nr_frags = 0 frag_list = null 
+正常分片skb ： frag_list = next_skb 
+启动sg的skb： len = ip包长+ sg1 + sg2 data_len = sg1+sg2 nr_frags =2 frag_list = null #表示不是普通分片 frags指向两个page  
+两个启动sg的skb： 共享page  
+
+7. gso #表示到达网卡的报文很大只，
+gso_size #传输层决定的mss值
+gso_segs #传输层计算的应该分多少段
+gso_type # tcp offload /udp offload 
+
+8. skb 管理函数
+
+内存分配
+==
+skb_init() 
+	skbuff_head_cache #从高速缓存分配普通的skb 内存大小 sizeof(skb)
+	skbuff_fclone_cache # 分配两个skb 2*sizeof(skb)+sizeof(atomic-t) 引用计数 #参考skb->flcone
+	
+__alloc_skb 
+	kmem_cache_alloc_node #skb 不从dma分配
+	kmalloc_node_track_caller # buff 从dma分配 + sizeof(struct skb_shared_info)
+	
+__netdev_alloc_skb #设备驱动层，中断上下文分配，原子操作
+
+dev_kfree_skb
+kfree_skb
+
+skb收发数据时，缓冲区的相关操作
+==
+skb_reserver()#接收时，移动data和tail ，tail指向payload末尾 data指向帧首部，在data和head之间预留2B与14B帧实现对齐
+skb_push() #发送时，移动data和tail，tail指向end，依次填充payload，tcph，iph，mach，head依次向上移动
+skb_put()  #send tail往下移动指定长度的字节
+skb_pull() #接收时，往下移动data
+
+skb的3个组件的克隆
+==
+skb_clone() # 一个skb可能会被往上传送给多个接受者，#只复制skb描述符
+pskb_clone() # 同时复制缓冲区 不复制frags
+skb_copy() # 3个都复制
+
+skb 链表的管理
+===
+skbh，执行异步操作
+skb_queue_head_init() #  创建空链表 返回头结点
+sbk_queue_head() skb_queue_tial() #插入
+skb_dequeue() skb_dequeue_tail() #删除
+skb_queue_purge() #删除整个链表
+skb_queue_walk #宏 遍历
+
+添加删除尾部数据
+===
+skb_add_data() # 移动tail
+skb_trim() # 处理线性存储
+pskb_trim() #可处理非线性存储 frags 
+
+拆分数据
+===
+skb_split()
+
+重新分配skb的线性数据
+===
+pskb_expand_head()
+

@@ -1,0 +1,43 @@
+#chapter2
+
+现在要理解各个网络层的功能了
+===
+
+2.2 协议分层
+传输层： 数据传输，数据控制 #tcp udp 
+ip层  ： 负责接收，发送，转发数据报。 #icmp arp 
+链路层： 设备驱动层  #ppp slip  # 数据链路层是不是设备驱动层？
+物理层： 介质
+
+2.3 linux 网络协议栈
+	系统调用接口 #用户内核访问接口  #系统调用是怎么实现（初始化，执行）的 int 0x80 index 
+	
+	socket层     #协议无关 为协议访问提供抽象接口 # 多种协议  
+	             # S.socket 表示通信链路的一端 存储该链路的所有信息 协议 状态 队列
+                 # 关键成员  sk:该socket的传输控制块 ops:协议的操作集	
+				 
+	传输层       # 传输 控制 
+				 # sock 可分类（类型转换）为 tcp_sock ..
+				 # tcp_sock 描述 tcp 协议的所有特性 
+				 # 传输控制块 基于协议层级继承  S.sock -> S.inet_sock -> S.tcp_sock 
+				 
+				 # socket 层的 ops 即 S.proto_ops 是 socket层向传输层的入口，故与socket系统调用一一对应
+				 # S.proto_ops （socket->proto_ops）会调用 S.proto(socket->sock->proto) 里的函数，实现具体的传输层的操作
+				 
+				 # skb 反向挂接 sock 是 传输控制块的一部分
+				 # 生存在 socket层 和driver层
+				 
+	网络层       # 数据收发，转发
+	
+	邻居子系统   # arp表
+	
+	设备接口层   #设备无关 发送时为各个驱动的访问提供抽象接口 接收时为各种协议的访问提供接口
+	             # napi 是 irq与poll 混合体 ，减少中断 
+				 
+	设备驱动层   # S.net_device  挂接在 S.skb 
+
+socket层   sock_init
+传输层     proto_init
+网络层     inet_init 
+设备接口层 net_dev_init
+驱动层     e100_init_module
