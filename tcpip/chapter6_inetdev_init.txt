@@ -1,4 +1,5 @@
 #chapter6   
+网络设备ip初始化,ip配置，inetaddr_chain
 
 1. 主ip，从ip，ip别名
 2. net_device->ip_ptr is S.in_device #通过 in_dev_get() 获取，in_dev_get 释放

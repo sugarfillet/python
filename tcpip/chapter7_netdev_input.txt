@@ -8,6 +8,8 @@
 ===
 完全硬中断收包 
 定时器轮询设备收包 
+以上两种不在使用，比较消耗cpu
+使用中断和软中断的形式
 
 
 
@@ -25,29 +27,36 @@ SIO*IF{METRIC ，MTU ,HWADDR,MAP#设备的内存，io，中断，多端口设备
 
 SIOCETHTOOL #eth设备专用操作命令
 
-4. S.softnet_data #描述软中断的收发队列 #每个cpu都有该实例，无锁 #承上启下 接口层和网络层
+4. S.softnet_data #描述软中断的收发队列/接口层的收发队列 #每个cpu都有该实例，无锁 #与ptype_承上启下 接口层和网络层
    上述的 poll_list 和 input_pkt_queue
-   S.net_device * output_queue #napi 设备队列
    skb_h input_pkt_queue       #非napi skb缓存队列 netdev_max_backlog 1000
+   S.net_device backlog_dev    #非napi的虚拟网络设备队列
    list_head poll_list;        #napi 设备队列
+   S.net_device * output_queue #napi 发送设备队列
    skb * commletion_queue      #完成发送的等待释放队列
-   S.net_device backlog_dev    #非napi驱动的虚拟网络设备队列
    
 5.napi驱动 多为物理设备
 ===
-NP/NAPI(轮询设备):硬中断执行上半部，将设备添加到轮询队列 ，关闭硬中断，通过一个数据包触发软中断轮询队列 poll_list(网络设备的读取的包) 
+NP/NAPI(轮询设备):硬中断执行上半部，关闭硬中断,将设备添加到轮询队列 ，触发软中断轮询队列 poll_list(网络设备) 
 
-e100_intr() #中断例程
-net_rx_aciton #软中断例程
+e100_intr() #中断例程 
+       #wakeup_softirqd 
+net_rx_action #napi软中断例程 
+       #netpoll->poll
+	#netif_napi_add(netdev, &nic->napi, e100_poll, E100_NAPI_WEIGHT);
 e100_poll #由软中断调用
+	#e100_rx_clean
 
 
 6.非napi驱动 多为虚拟网络
 ===
 非napi （轮询数据）：硬中断读取数据包放入input_pkt_input,软中断轮询处理包
 
-netif_rx #中断例程，填充input_pkt_queue
-process_backlog #轮询例程
+#中断例程参考虚拟网卡驱动的实现
+netif_rx #中断例程#填充某个cpu的softnet_data->input_pkt_queue #____napi_schedule执行ksoftirqd 
+net_rx_action #napi软中断例程
+process_backlog #轮询例程 #轮询input_pkt_queue ,以dev_backlog为参数是为了更改设备配额 #netif_receive_skb(skb)
+
 	
 
 7. 接口层上送网络层的处理
@@ -62,7 +71,7 @@ process_backlog #轮询例程
   
   ptype_base #网络协议族的实例散列表
   
-8. netif_receive_skb #遍历ptype_base，调用网络层的协议类型，调用例程
+8. netif_receive_skb #遍历ptype_base，调用网络层的协议类型，调用例程 pt_prev->func()
 9. 相应cpu变化，并实现收包的迁移
 
 10. netpoll && netconsole

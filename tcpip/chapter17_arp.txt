@@ -1,0 +1,118 @@
+#chapter17
+
+同一个ip局域网内的主机，或者邻居之间在三层上仅相隔一跳的距离
+
+1. arp系统参数
+mcast_solicit  3#多播探测次数，如果超过 为 failed
+ucast_solicit  3
+app_solicit 0
+#单播3次 请求arpd 0次 多播3次
+retrans_time 1s #请求间隔
+base_reachable_time #用来计算reachable_time #定义了 reachable -> stale 的时间
+delay_first_probe_time # stale 5s delay/arp
+gc_interval 
+gc_stale_time
+
+
+
+2. 
+struct neigh_table {//邻居表
+        struct neigh_table      *next; # arp_tble nd_tbl dn_neigh_talbe 
+        int                     family; #arp 为 AF_INET
+        int                     entry_size; #表项的大小 sizeof(neighbour)+4
+        int                     key_len;    # 哈希函数使用的key的长度 ip 4
+        __u32                   (*hash)(const void *pkey, const struct net_device *); 
+        int                     (*constructor)(struct neighbour *); # arp_contructor()
+        int                     (*pconstructor)(struct pneigh_entry *); #创建代理项
+        void                    (*pdestructor)(struct pneigh_entry *);
+        void                    (*proxy_redo)(struct sk_buff *skb); #处理代理arp报文
+        char                    *id; #"arp_cache" 
+        struct neigh_parms      parms; #arp表调节参数
+        /* HACK. gc_* shoul follow parms without a gap! */
+        int                     gc_interval; #垃圾回收周期
+        int                     gc_thresh1; # 表项数目下限
+        int                     gc_thresh2; # 表项数据软上线 延迟5秒
+        int                     gc_thresh3; #表项数目硬上线
+        unsigned long           last_flush; #最近一次刷新邻居表的时间
+        struct delayed_work     gc_work; #垃圾回收的处理结构
+        struct timer_list       proxy_timer;
+        struct sk_buff_head     proxy_queue;
+        atomic_t                entries; #表项数目
+        rwlock_t                lock;    #neigh_lookup 读 neigh_update写
+        unsigned long           last_rand; # neigh_parms 中 reachable_time 被更新的最新时间
+        struct kmem_cache               *kmem_cachep; #分配 neighbour实例的slab缓存
+        struct neigh_statistics __percpu *stats; # 邻居表的数据统计
+        struct neighbour        **hash_buckets; #邻居表项散列表
+        unsigned int            hash_mask;
+        __u32                   hash_rnd;
+        struct pneigh_entry     **phash_buckets; #代理表项散列表
+};	
+3.
+struct neighbour {//邻居表项
+        struct neighbour        *next; #链表
+        struct neigh_table      *tbl; #arp_tbl 
+        struct neigh_parms      *parms; #复制 arp_tbl 的数据
+        struct net_device               *dev; #
+        unsigned long           used; #最近一次被使用的时间
+        unsigned long           confirmed; #最近一次确认该邻居可达性的时间
+        unsigned long           updated; #最近一次被更新的时间
+        __u8                    flags; #表项的特性 该表项是网关
+        __u8                    nud_state; #表项的状态
+        __u8                    type; #表项的类型 unicast local broadcast ...
+        __u8                    dead; #为1 表明正在被删除
+        atomic_t                probes;#发送请求报文而未能得到应答的次数
+        rwlock_t                lock; 
+        unsigned char           ha[ALIGN(MAX_ADDR_LEN, sizeof(unsigned long))]; #mac地址
+        struct hh_cache         *hh; #表项的二层协议首部缓存
+        atomic_t                refcnt; #引用计数
+        int                     (*output)(struct sk_buff *skb); //将skb发送给该邻居 connected_output
+        struct sk_buff_head     arp_queue;
+        struct timer_list       timer;
+        const struct neigh_ops  *ops; #操作表
+        u8                      primary_key[0]; #三层地址长度
+};
+4.
+struct neigh_ops {//邻居表项操作
+        int                     family;
+        void                    (*solicit)(struct neighbour *, struct sk_buff*); // 报文缓存后，第一次发送请求报文call
+        void                    (*error_report)(struct neighbour *, struct sk_buff*); // 报文缓存，且表项不可达 ，向三层上报错误
+        int                     (*output)(struct sk_buff*);//通用
+        int                     (*connected_output)(struct sk_buff*);//邻居可达的输出函数
+        int                     (*hh_output)(struct sk_buff*); //使用二层缓存的输出函数
+        int                     (*queue_xmit)(struct sk_buff*);//真实的输出函数
+};
+
+5.
+struct neigh_parms {//邻居表的调节属性 /proc/sys/net/ipv4/neigh/default/
+#ifdef CONFIG_NET_NS
+        struct net *net;
+#endif
+        struct net_device *dev;
+        struct neigh_parms *next;
+        int     (*neigh_setup)(struct neighbour *);
+        void    (*neigh_cleanup)(struct neighbour *);
+        struct neigh_table *tbl;
+
+        void    *sysctl_table;
+
+        int dead;
+        atomic_t refcnt;
+        struct rcu_head rcu_head;
+
+        int     base_reachable_time;
+        int     retrans_time;#arp请求的重传间隔
+        int     gc_staletime;#长时间没使用 且没被引用 会被删除
+        int     reachable_time; #为reachable的超时时间 #随机值 #在base_reachable_time*0.5 和 base_reachable_time*1.5之间
+        int     delay_probe_time; #delay->probe reachable->delay 的超时时间
+
+        int     queue_len;
+        int     ucast_probes; #单播请求数目
+        int     app_probes;
+        int     mcast_probes;#多播请求数目
+        int     anycast_delay;
+        int     proxy_delay;
+        int     proxy_qlen;
+        int     locktime; #地址冲突，两各回应报的时间间隔小于该值，则覆盖 
+};
+6. 邻居表的初始化 #neight_table_init #arp_init 
+	
