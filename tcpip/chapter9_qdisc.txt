@@ -1,0 +1,14 @@
+#chapter9
+
+Qos 针对不同的服务提供不同的网络服务功能，
+流量控制多为输出方向的
+
+#基于流量控制的输出
+
+1. dev_queue_xmit 
+	#入队列q->enqueue(skb, q)
+	#qdisc_run
+2. qdisc_restart #规则队列中get报文并输出到网络设备#dev_hard_start_xmit 
+
+3. 排队规则 过滤器 分类
+参考图

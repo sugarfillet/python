@@ -27,14 +27,13 @@ ip层  ： 负责接收，发送，转发数据报。 #icmp arp
 				 # skb 反向挂接 sock 是 传输控制块的一部分
 				 # 生存在 socket层 和driver层
 				 
-	网络层       # 数据收发，转发
+|	网络层       # 数据收发，转发
+net	
+|	邻居子系统   # arp表
 	
-	邻居子系统   # arp表
-	
-	设备接口层   #设备无关 发送时为各个驱动的访问提供抽象接口 接收时为各种协议的访问提供接口
-	             # napi 是 irq与poll 混合体 ，减少中断 
-				 
-	设备驱动层   # S.net_device  挂接在 S.skb 
+|	设备接口层   #设备无关 发送时为各个驱动的访问提供抽象接口 接收时为各种协议的访问提供接口
+link	             # napi 是 irq与poll 混合体 ，减少中断 
+|	设备驱动层   # S.net_device  挂接在 S.skb 
 
 socket层   sock_init
 传输层     proto_init

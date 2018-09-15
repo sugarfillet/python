@@ -1,0 +1,14 @@
+设备层发包流程
+====
+1. 网络层调用 dev_queue_xmit() to dev层
+2. 入队列output_queue 
+3. 输出软中断，出队列到驱动，放入commletion_queue
+4. 合适时机释放commletion_queue
+
+1. 发送的一些特性支持 1. gso 2. fraglist 3. sg 4. Qos 
+2. dev_hard_start_xmit #将数据包交给网络设备的输出接口 #可能设个传送gso分割的多个包
+   dev->netdev_ops->ndo_start_xmit(skb, dev); #e100_xmit_frame()
+   
+3. netif_schedule() #入队列output_queue #触发输出软中断 
+4. net_tx_aciton() #软中断例程 #遍历output_queue ，#qdisc_run(dev) 发包
+	
