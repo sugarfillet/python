@@ -46,11 +46,11 @@ struct net_protocol { #某一[inet]协议族内的传输层协议接收例程
 4. F.inet_init 
 	#proto_register(&tcp_prot, 1); #分配slab ，list_add(&prot->node, &proto_list); #/proc/net/protocols #注册所有协议操作
 	#sock_register(&inet_family_ops);#让套接口层支持pf_inet 
-	#inet_add_protocol(&icmp_protocol, IPPROTO_ICMP) #填充inet_protos[]#让网络成明确接收函数明确接收函数
+	#inet_add_protocol(&icmp_protocol, IPPROTO_ICMP) #填充inet_protos[]#让网络成明确接收函数
 	#基于&inetsw_array[] #实现不同接口类型的散列表inetsw #让套接口层支持不同类型的socket
 	#arp_init #初始化arp_tbl #注册arp的接收函数 #sysctl #通知连
 	#ip_init
 	#tcp_v4_init(&inet_family_ops)#内核的tcp套接口 用来发送rst ack
 	#tcp_init
 	#ipv4_proc_init
-	#dev_add_pack(&ip_packet_type); #注册ip接收函数
+	#dev_add_pack(&ip_packet_type); #在dev层注册ip接收函数

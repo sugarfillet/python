@@ -1,0 +1,50 @@
+#chapter11 ip层 #inet层初始化的东西远远比ip层要多 #ip层的初始化和收发过程
+1. ip 报文分析
+2. ip_rcv->dst_input->ip_local_deliver || ip_queue_xmit->dst_output->ip_output
+3. M.IPCB # S.inet_skb_parm #skb中的inet层的私有数据 #描述ip头选项
+4. 系统参数 
+	ip_default_ttl 
+	ip_dynaddr #拨号的情况下，伪装原ip
+	ip_forward
+	ip_local_port_range #默认端口分配范围
+	ip_no_pmtu_disc #路径mtu 
+	ip_nonlocal_bind #进程绑定到非本地地址
+	rp_filter #检查源地址的正确性
+	promote_secondaries 1# 删除主地址，备能否升主
+	
+5. ip_init 	#初始化路由模块 #对端信息管理模块
+6. ipv4_devconf #配置网卡的或者默认的ipv4行为
+7. ip层的错误队列 sk_error_queue 
+8. 对端信息块 inet_peer #主要用于组装ip报文是防止出错 #已v4addr 为关键字，peer_root 为root，组织成AVL数
+struct inet_peer
+{
+        
+        struct inet_peer        *avl_left, *avl_right;
+        __be32                  v4daddr;        /* peer's address */
+        __u16                   avl_height;
+        __u16                   ip_id_count;    /* IP ID for the next packet */
+        struct inet_peer        *unused_next, **unused_prevp; #闲置的对端信息快链表 #
+        __u32                   dtime;       #最近一次没使用的时间                                           
+        atomic_t                refcnt;      #
+        atomic_t                rid;         #对端发送分片的计数器
+        __u32                   tcp_ts;      #最后一个ack到达的时间
+        unsigned long           tcp_ts_stamp; #ack的时间戳
+};
+就像arp_tlb 表项，也有生存周期
+
+9. ip_rcv #check # PREROUTING #ip_rcv_finish
+10. ip_rcv_finish #ip_route_input 查找路由 # dst_input (skb->dst->input && S.dst_entry) ->ip_forward 
+																						->ip_local_deliver
+11. ip_local_deliver #重组 ip_defrag # INPUT # ip_local_deliver_finish 
+12. ip_local_deliver_finish #skb_pull #ipprot->handler(skb) - inet_protos - tcp_rcv 
+
+13. ip_forward #check #FORWARD #ip_forward_finish 
+14. ip_forward_finish #dst_ouput -> ip_output 
+
+15. ip_output #set dev proto #POSTROUTING #ip_finish_output
+16. ip_finish_output #ip_fragment #ip_finish_ouput2
+17. ip_finish_ouput2 # 添加链路层首部缓存，neigh_hh_output or# dst->neighbour->output(skb) 
+
+18. ip_queue_xmit # 处理路由缓存 #构建ip首部 #OUPUT #dst_ouput -> ip_output
+19. 其他的输出 #ip_build_and_send_pkt syc+ack #ip_send_reply rst+ack #ip_append_data
+

@@ -1,0 +1,20 @@
+#19
+#chapter19
+1. FIB forwarding information base 存储的信息有
+   # 确认上传还是转发 
+   # 转发准确
+   # 输出到哪个设备
+
+2. 路由的作用域 ，默认网关
+3. #table local #table main 
+4. 路由缓存面向的是ip地址，路由表项面向的网段
+
+	
+5. 路由表项的管理算法	FIB_HASH FIB_TRIE 
+	
+6. fib_table 构成 fib_table_hash[] #代表不同的路由表 
+   fn_hash #
+   fn_zone #描述路由表中所有同一掩码长短表项的集合
+   fib_node #同一网段的路由表项 通过 fn_key（网段） 哈希到一个表中 冲突就链接到fn_hash 中
+   fib_alias #路由表项 
+   fib_info #共享信息
