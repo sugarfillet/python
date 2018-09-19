@@ -1,0 +1,52 @@
+#chapter22 #套接口层 S.socket S.proto_ops S.proto G.inetsw[] sockfs 
+
+1. #应用层与协议层之间的接口层 #允许基于文件的io操作 #S.proto_ops实现套接口层向传输层的跳转
+
+
+2. struct socket {#代表通信链路的一端
+        socket_state            state; #连接状态 针对tcp
+        unsigned long           flags; #一组标志位 比如发送队列满 
+        const struct proto_ops  *ops;  #传输层的跳转表 #inet协议族的几个传输层跳转表 inet_stream_ops inet_dgram_ops inet_sockraw_ops
+        struct fasync_struct    *fasync_list; #异步通知队列
+        struct file             *file; #套接口与文件的绑定
+        struct sock             *sk;  #该套接口关联的传输控制块
+        wait_queue_head_t       wait; #等待该套接口的进程队列
+        short                   type; #套接口类型 stream dgram raw #inetsw_array[] #多种类型套接口数组 定义了网络层接口|传输层接口
+};
+
+2. 
+struct proto_ops { 
+#往传输层跳转表proto_ops [inet_stream_ops][inet_sendmsg] proto  [tcp_prot][tcp_sendmsg]
+#inet协议族里 一个传输层协议表现为一个 inet_protosw 
+#又回顾了一下 inet_init #sock_register让socket层支持协议族  #inet里通过inetsw 支持不同的socket类型（实现向传输层的跳转） 同时通过prot实现具体的传输层操作 #而tipc里直接通过赋值S.socket->ops来支持不同的socket类型
+        int             family;
+        struct module   *owner;
+        int             (*release)   (struct socket *sock);
+        int             (*bind)      (struct socket *sock,
+                                      struct sockaddr *myaddr,
+                                      int sockaddr_len);
+        int             (*connect)   (struct socket *sock,
+                                      struct sockaddr *vaddr,
+                                      int sockaddr_len, int flags);
+        int             (*socketpair)(struct socket *sock1,
+                                      struct socket *sock2);
+        int             (*accept)    (struct socket *sock,
+                                      struct socket *newsock, int flags);
+		...
+}
+3. 怎么实现通过vfs对socket文件的读写 #sockfs
+static struct file_system_type sock_fs_type = {
+        .name =         "sockfs",
+        .get_sb =       sockfs_get_sb, #分配超级块
+        .kill_sb =      kill_anon_super,
+};
+socket_file_ops #socket文件操作集
+
+5. 怎么实现socket文件与socket的绑定 #sock_map_fd()->sock_attach_fd()
+
+6. sock_init   #在inet_init之后执行 #设置rwmem #创建skb的slab缓存 #sock_inode_cache # 注册sockfs
+
+7. int socket(int domain, int type, int protocol); #protocol 0 #创建一个socket 并初始化 #映射fs 
+8. bind  #sock 绑定地址和端口 #tcp udp不支持绑定
+9. listen #只有tcp有listen #设置监听队列长度
+10. accept #创建新的socket #inet_csk_accept #fd_install(newfd,newfile) 

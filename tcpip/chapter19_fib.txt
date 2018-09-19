@@ -1,0 +1,126 @@
+#chapter19 #路由表的构成与初始化
+1. FIB forwarding information base 存储的信息有
+   # 确认上传还是转发 
+   # 转发准确
+   # 输出到哪个设备
+
+2. 路由的作用域 ，默认网关
+3. #table local #table main 
+4. 路由缓存 #1.三层协议相关缓存 #2 与协议无关的缓存dst 
+            #多个路由表rule，只有一个路由缓存 #面向的是ip地址，路由表项面向的网段
+
+	
+5. 路由表项的管理算法	FIB_HASH FIB_TRIE 
+	
+6. fib_table 构成 fib_table_hash[] #代表不同的路由表 
+   fn_hash #
+   fn_zone #描述路由表中所有同一掩码长短表项的集合
+   fib_node #同一网段的路由表项 通过 fn_key（网段） 哈希到一个表中 冲突就链接到fn_hash链表中
+   fib_alias #路由表项 
+   fib_info #共享信息
+	
+	
+7. 
+struct fib_table {
+        struct hlist_node tb_hlist; #fib_table_hash
+        u32             tb_id; #256 rule table rt_class_t
+        unsigned        tb_stamp;
+        int             (*tb_lookup)(struct fib_table *tb, const struct flowi *flp, struct fib_result *res); #fn_hash_lookup #fib_lookup #参考 fib_hash_init 
+        int             (*tb_insert)(struct fib_table *, struct fib_config *); #fn_hash_insert #ip_rt_ioctl or inet_rtm_[del|new]route 
+        int             (*tb_delete)(struct fib_table *, struct fib_config *); #
+        int             (*tb_dump)(struct fib_table *table, struct sk_buff *skb,
+                                     struct netlink_callback *cb); #ip r get 
+        int             (*tb_flush)(struct fib_table *table);#删除 dead S.fib_info 
+        void            (*tb_select_default)(struct fib_table *table, 
+                                             const struct flowi *flp, struct fib_result *res); #fn_hash_select_default
+
+        unsigned char   tb_data[0];#路由表项的散列表起始地址
+};	
+
+8. 
+struct fn_zone {
+        struct fn_zone          *fz_next;       /* Next not empty zone  */ #S.fn_hash->fn_zone_list #活动zone的链表成员
+        struct hlist_head       *fz_hash;       /* Hash table pointer   */ #该zone的路由表项散列表 
+        int                     fz_nent;        /* Number of entries    */ #该zone散列表的fib_node 实例数目
+        int                     fz_divisor;     /* Hash divisor         */ #fz_hash 的容量
+        u32                     fz_hashmask;    /* (fz_divisor - 1)     */ # 散列表的key 
+#define FZ_HASHMASK(fz)         ((fz)->fz_hashmask)                     
+
+        int                     fz_order;       /* Zone order           */ #子网掩码表示
+        __be32                  fz_mask;
+#define FZ_MASK(fz)             ((fz)->fz_mask)
+};
+	
+9. 、
+struct fib_node { //代表一个唯一的目的网络的路由表项 即 目的网络相同的所有路由表项
+        struct hlist_node       fn_hash; #fn链表
+        struct list_head        fn_alias;#共享该fn的fa实例链表
+        __be32                  fn_key; #查找路由表时的搜索条件 
+};	
+
+10. fib_alias
+
+struct fib_alias { #代表一条路由表项
+        struct list_head        fa_list; #共享fn的fa链表
+        struct rcu_head rcu;
+        struct fib_info         *fa_info; #fib_info实例 表示如何处理与该路由匹配的包
+        u8                      fa_tos; # 路由的服务类型
+        u8                      fa_type; # 路由表项的类型 间接定义匹配时所采取的动作
+        u8                      fa_scope; #路由表项的作用范围
+        u8                      fa_state; #标志位
+};
+
+11. fib_info 
+struct fib_info {#与fa组合 标示一条路由表项
+        struct hlist_node       fib_hash; #fib_info_hash[] 
+        struct hlist_node       fib_lhash; #fib_info_laddrhash[]
+        int                     fib_treeref; #fn的数目
+        atomic_t                fib_clntref; #路由表项引用计数
+        int                     fib_dead; #
+        unsigned                fib_flags; #表示吓一跳不存在
+        int                     fib_protocol; #路由协议 icmp重定向路由 内核路由 用户态配置的路有(dhcp)
+        __be32                  fib_prefsrc; # 首选 src ip 
+        u32                     fib_priority; #优先级
+        u32                     fib_metrics[RTAX_MAX] #度量值;
+#define fib_mtu fib_metrics[RTAX_MTU-1]
+#define fib_window fib_metrics[RTAX_WINDOW-1]
+#define fib_rtt fib_metrics[RTAX_RTT-1]
+#define fib_advmss fib_metrics[RTAX_ADVMSS-1]
+        int                     fib_nhs;   #吓一跳路由的数量 为1
+#ifdef CONFIG_IP_ROUTE_MULTIPATH
+        int                     fib_power; #多路径路由 的权重
+#endif
+#ifdef CONFIG_IP_ROUTE_MULTIPATH_CACHED
+        u32                     fib_mp_alg;
+#endif
+        struct fib_nh           fib_nh[0]; #支持多路径路有时的吓一跳散列表
+#define fib_dev         fib_nh[0].nh_dev
+};
+
+12 
+struct fib_nh {
+        struct net_device       *nh_dev;
+        struct hlist_node       nh_hash;
+        struct fib_info         *nh_parent;
+        unsigned                nh_flags;
+        unsigned char           nh_scope;
+#ifdef CONFIG_IP_ROUTE_MULTIPATH
+        int                     nh_weight;
+        int                     nh_power;
+#endif
+#ifdef CONFIG_NET_CLS_ROUTE
+        __u32                   nh_tclassid;
+#endif
+        int                     nh_oif;
+        __be32                  nh_gw;  #吓一跳路由的地址
+};
+
+13 路由表的初始化 fib_hash_init(id) 
+   main local 表的初始化 # ip_fib_init V.ip_fib_main_table V.ip_fib_local_table
+
+14 netlink 接口管理路由
+   
+15 fib_netdev_notifier 针对网络设备状态和ip地址变化 执行 fib_netdev_event 
+
+
+
